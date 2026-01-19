@@ -119,10 +119,10 @@ Tarayıcıda `http://localhost:8501` adresine gidin.
 | İsim | Görev | Dosyalar |
 |------|-------|----------|
 | **Mehmet** | Team Lead | `app.py`, `config.py`, `README.md` |
-| **Gözde** | Tools - Data & Stats | `data_loader.py`, `statistics.py` |
+| **Gözde** | Agent Core | `planner.py`, `executor.py` |
 | **Kişi 2** | Tools - Analysis | `analysis.py`, `reporter.py` |
 | **Kişi 3** | Memory & Prompts | `context.py`, `prompts.py` |
-| **Kişi 4** | Agent Core | `planner.py`, `executor.py` |
+| **Kişi 4** | Tools - Data & Stats | `data_loader.py`, `statistics.py` |
 
 ## 🔧 Geliştirme
 
