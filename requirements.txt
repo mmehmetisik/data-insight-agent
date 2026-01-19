@@ -1,0 +1,23 @@
+# =============================================================================
+# DATA INSIGHT AGENT - Bağımlılıklar
+# =============================================================================
+
+# LLM API
+groq==0.4.2
+
+# Veri İşleme
+pandas==2.1.4
+numpy==1.26.3
+
+# Görselleştirme
+plotly==5.18.0
+matplotlib==3.8.2
+
+# Web Arayüzü
+streamlit==1.29.0
+
+# Ortam Değişkenleri
+python-dotenv==1.0.0
+
+# Şema Validasyonu
+pydantic==2.5.3
