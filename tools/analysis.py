@@ -17,6 +17,16 @@ from typing import Dict, Any, List, Tuple
 
 # TODO: config'den ayarları import et
 # from config import CORRELATION_THRESHOLD, MISSING_DATA_WARNING_THRESHOLD, OUTLIER_IQR_MULTIPLIER
+import os
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
+from config import (
+    CORRELATION_THRESHOLD,
+    MISSING_DATA_WARNING_THRESHOLD,
+    OUTLIER_IQR_MULTIPLIER,
+)
 
 
 def check_missing(context: Any) -> Dict[str, Any]:
@@ -61,13 +71,58 @@ def check_missing(context: Any) -> Dict[str, Any]:
     5. Sonucu döndür
     """
     
+    
     # TODO: Implement this function
     
     # İpucu:
     # missing_per_column = df.isnull().sum()
     # missing_percentage = (missing_per_column / len(df)) * 100
     
-    pass
+    df = getattr(context, "dataframe", None)  # df'yi context'ten al
+    if not isinstance(df, pd.DataFrame):      # df kontrolü
+        return {"success": False, "error": "context.dataframe pandas DataFrame olmalı."}
+
+    n_rows, n_cols = df.shape                 # satır/sütun sayısı
+    total_cells = int(n_rows * n_cols)        # toplam hücre
+    if total_cells == 0:                      # boş df koruması
+        return {"success": True, "total_missing": 0, "total_cells": 0,
+                "missing_percentage": 0.0, "by_column": {}, "warnings": []}
+
+    missing_per_column = df.isnull().sum()                    # sütun bazında eksik sayıları
+    missing_percentage = (missing_per_column / len(df)) * 100 # sütun bazında eksik yüzdeleri
+
+    total_missing = int(missing_per_column.sum())             # toplam eksik
+    overall_pct = round((total_missing / total_cells) * 100, 1)  # genel eksik % (8.1 gibi)
+
+    thr = MISSING_DATA_WARNING_THRESHOLD                      # eşik (0.1 => %10)
+    thr_pct = thr * 100 if 0 < thr <= 1 else float(thr)       # oran ise yüzdeye çevir
+
+    by_column: Dict[str, Dict[str, float]] = {}               # çıktı formatı
+    warnings: List[str] = []                                  # uyarı listesi
+
+    for col in df.columns:                                    # her sütunu gez
+        cnt = int(missing_per_column[col])                    # eksik sayısı
+        if cnt == 0:
+            continue
+
+        pct = round(float(missing_percentage[col]), 2)        # sütun % (19.87 gibi)
+        by_column[col] = {"count": cnt, "percentage": pct}
+
+        if pct >= thr_pct:                                    # eşik üstü ise uyar
+            pct_msg = round(pct, 1)                           # mesajda 77.1 gibi
+            action = "bu sütun analizden çıkarılabilir" if pct >= 50 else "doldurmak gerekebilir"
+            warnings.append(f"{col} sütununda %{pct_msg} eksik veri var - {action}")
+
+    return {
+        "success": True,
+        "total_missing": total_missing,
+        "total_cells": total_cells,
+        "missing_percentage": overall_pct,
+        "by_column": by_column,
+        "warnings": warnings,
+    }
+
+    
 
 
 def find_correlations(context: Any) -> Dict[str, Any]:
@@ -119,7 +174,59 @@ def find_correlations(context: Any) -> Dict[str, Any]:
     #         if abs(corr_value) > CORRELATION_THRESHOLD:
     #             strong_correlations.append(...)
     
-    pass
+    df = getattr(context, "dataframe", None)  # 1) df'yi context'ten al
+    if not isinstance(df, pd.DataFrame):      # df kontrolü
+        return {"success": False, "error": "context.dataframe pandas DataFrame olmalı."}
+
+    numeric_df = df.select_dtypes(include=[np.number])  # 1) sadece sayısal sütunlar
+    warnings: List[str] = []
+
+    if numeric_df.shape[1] < 2:  # korelasyon için en az 2 sayısal sütun gerekir
+        return {
+            "success": True,
+            "correlation_matrix": {},
+            "strong_correlations": [],
+            "warnings": ["Korelasyon için yeterli sayısal sütun yok."],
+        }
+
+    corr_matrix = numeric_df.corr()  # 2) corr() ile korelasyon matrisi
+
+    thr = CORRELATION_THRESHOLD  # eşik (örn 0.5)
+    strong_correlations: List[Dict[str, Any]] = []
+
+    # 3) güçlü korelasyonları bul (ipucundaki döngü)
+    for i, col1 in enumerate(corr_matrix.columns):
+        for col2 in corr_matrix.columns[i + 1:]:
+            corr_value = float(corr_matrix.loc[col1, col2])
+            if np.isnan(corr_value):
+                continue
+            if abs(corr_value) > thr:
+                # strength etiketini üret 
+                if corr_value >= 0.8:
+                    strength = "strong positive"
+                elif corr_value >= thr:
+                    strength = "moderate positive"
+                elif corr_value <= -0.8:
+                    strength = "strong negative"
+                else:
+                    strength = "moderate negative"
+
+                strong_correlations.append({
+                    "col1": str(col1),
+                    "col2": str(col2),
+                    "correlation": round(corr_value, 3),  # örnekte 3 ondalık gibi
+                    "strength": strength
+                })
+
+
+    # 4) sonucu döndür
+    return {
+        "success": True,
+        "correlation_matrix": corr_matrix.round(3).to_dict(),  # dict of dict
+        "strong_correlations": strong_correlations,
+        "warnings": warnings,
+    }
+
 
 
 def detect_outliers(context: Any) -> Dict[str, Any]:
@@ -184,7 +291,73 @@ def detect_outliers(context: Any) -> Dict[str, Any]:
     # upper = Q3 + 1.5 * IQR
     # outliers = df[(df[col] < lower) | (df[col] > upper)]
     
-    pass
+    df = getattr(context, "dataframe", None)  # df'yi context'ten al
+    if not isinstance(df, pd.DataFrame):      # df kontrolü
+        return {"success": False, "error": "context.dataframe pandas DataFrame olmalı."}
+
+    numeric_df = df.select_dtypes(include=[np.number])  # 1) sayısal sütunları seç
+    if numeric_df.shape[1] == 0:
+        return {
+            "success": True,
+            "by_column": {},
+            "total_outliers": 0,
+            "outlier_rows": [],
+            "warnings": ["Outlier analizi için sayısal sütun bulunamadı."],
+        }
+
+    multiplier = OUTLIER_IQR_MULTIPLIER  # config dosyasına göre 1.5 kullanıldı.
+    by_column: Dict[str, Any] = {}
+    outlier_rows = set()
+    total_outliers = 0
+    warnings: List[str] = []
+
+    for col in numeric_df.columns:
+        series = numeric_df[col].dropna()  # NaN'leri dışarıda bırak
+        if series.empty:
+            continue
+
+        # 2) IQR hesapla
+        Q1 = series.quantile(0.25)
+        Q3 = series.quantile(0.75)
+        IQR = Q3 - Q1
+        lower = Q1 - multiplier * IQR
+        upper = Q3 + multiplier * IQR
+
+        # 3) Outlier'ları bul
+        mask = (numeric_df[col] < lower) | (numeric_df[col] > upper)
+        idx = df.index[mask].tolist()
+        out_vals = numeric_df.loc[mask, col].dropna().unique().tolist()
+
+        out_count = int(mask.sum())
+        if out_count == 0:
+            continue
+
+        out_pct = round((out_count / len(df)) * 100, 2)
+
+        by_column[str(col)] = {
+            "outlier_count": out_count,
+            "outlier_percentage": out_pct,
+            "lower_bound": round(float(lower), 2),
+            "upper_bound": round(float(upper), 2),
+            "outlier_values": sorted(out_vals)[:20],  # listeyi çok büyütmemek için ilk 20
+        }
+
+        total_outliers += out_count
+        outlier_rows.update(idx)
+
+        # basit uyarı: %10 ve üzeri outlier varsa
+        if out_pct >= 10:
+            warnings.append(f"{col} sütununda %{round(out_pct, 0):.0f} outlier var")
+
+    # 4) Sonucu döndür
+    return {
+        "success": True,
+        "by_column": by_column,
+        "total_outliers": total_outliers,
+        "outlier_rows": sorted(list(outlier_rows)),
+        "warnings": warnings,
+    }
+
 
 
 def _get_correlation_strength(corr: float) -> str:
