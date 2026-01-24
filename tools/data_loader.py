@@ -1,9 +1,9 @@
 """
 data_loader.py - Veri Yükleme Aracı
 ===================================
-Görev: Gözde
+Görev: Havva
 Branch: feature/tools-data-stats
-Zorluk: ⭐⭐ Kolay-Orta
+Zorluk:
 
 Bu modül CSV dosyalarını yükler ve veri yapısını inceler.
 Proje 1'deki weather.py'a benzer basit bir yapıda.
