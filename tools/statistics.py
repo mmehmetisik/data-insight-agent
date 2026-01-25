@@ -1,7 +1,7 @@
 """
 statistics.py - İstatistik Araçları
 ====================================
-Görev: Gözde
+Görev: Havva
 Branch: feature/tools-data-stats
 Zorluk: ⭐⭐ Kolay-Orta
 
@@ -16,16 +16,22 @@ Kullanım:
 import pandas as pd
 import numpy as np
 from typing import Dict, Any, List
+from pandas.api.types import is_numeric_dtype
 
+# config'den ayarları import et
+from config import MAX_ROWS_FOR_ANALYSIS
 
-def compute_statistics(context: Any) -> Dict[str, Any]:
+def compute_statistics(context: Any, cat_th=10, car_th=20) -> Dict[str, Any]:
     """
     Veri seti için temel istatistikleri hesapla.
     
     Args:
         context: ExecutionContext objesi
             - context.dataframe: pandas DataFrame
-    
+            - cat_th: Sayisal ama kategorik değişkenler için eşik değer. 
+            -    (Not: 100 satirdan küçük datasetlerde bu değerin 2-5 arasina çekilmesi önerilir.)
+            - car_th: Kategorik ama yüksek kardinaliteli değişkenler için eşik değer.
+
     Returns:
         dict: İstatistiksel bilgiler
             - success: bool
@@ -67,57 +73,81 @@ def compute_statistics(context: Any) -> Dict[str, Any]:
     }
     
     TODO:
-    1. DataFrame'i al
-    2. Sayısal sütunlar için describe() çalıştır
-    3. Kategorik sütunlar için describe() çalıştır
+    1. DataFrame'i al +
+    2. Sayısal sütunlar için describe() çalıştır +
+    3. Kategorik sütunlar için describe() çalıştır +
     4. Genel bilgileri hesapla
     5. Sonucu dict olarak döndür
     """
+    try:
+        df = context.dataframe
+        if df is None or not isinstance(df, pd.DataFrame):
+            return {"success": False, "error": "Geçerli bir DataFrame yapisi bulunamadi"}
+        if df.empty:
+            return {"success": False, "error": "DataFrame boş; analiz yapilamaz"}
+        
+        print("DataFrame analiz süreci başlatiliyor...")
+
+        if len(df) > MAX_ROWS_FOR_ANALYSIS:
+            df = df.sample(MAX_ROWS_FOR_ANALYSIS)
+            print(f"Performans kisiti: Analiz için dataset {MAX_ROWS_FOR_ANALYSIS} satir ile sinirlandirildi")
+        else:
+            print(f"Performans kisitlaması yok. Datasetin tamamı analiz edilecek.")
+
+        # kategorik sütunların ayrımı (object + category)
+        categorical_cols = df.select_dtypes(include=["object", "category"]).columns.tolist()
+        # nümerik ama kategorik sütunların ayrımı
+        num_but_cat = [col for col in df.columns if df[col].nunique() < cat_th and
+                   is_numeric_dtype(df[col])]
+        # kategorik ama kardinal sütunlarına ayrımı
+        cat_but_car = [col for col in df.columns if df[col].nunique() > car_th and
+                   not is_numeric_dtype(df[col])]
+        # kategorik sütunların birleşimi ve temizliği
+        categorical_cols = categorical_cols + num_but_cat
+        categorical_cols = [col for col in categorical_cols if col not in cat_but_car]
+
+        # nümerik sütunların ayrımı
+        numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
+        numeric_cols = [col for col in numeric_cols if col not in num_but_cat]
+
+        # numeric istatistikler
+        numeric_stats = {}
+        if numeric_cols:
+            desc = df[numeric_cols].describe()
+            for col in numeric_cols:
+                numeric_stats[col] = desc[col].to_dict()
+
+        # kategorik istatistikler
+        categorical_stats = {}
+        if categorical_cols:
+            for col in categorical_cols:
+                categorical_stats[col] = {
+                    "count": int(df[col].count()),
+                    "unique": int(df[col].nunique()),
+                    "top": df[col].mode().iloc[0] if not df[col].mode().empty else None,
+                    "freq": int(df[col].value_counts().iloc[0]) if not df[col].value_counts().empty else 0
+             }
+                
+        return {
+            "success": True,
+            "numeric_stats": numeric_stats,
+            "categorical_stats": categorical_stats,
+            "overall": {
+                "total_rows": len(df),
+                "total_columns": len(df.columns),
+                "numeric_columns": len(numeric_cols),
+                "categorical_columns": len(categorical_cols)
+            }
+        }
     
-    # TODO: Implement this function
-    
-    # Örnek implementasyon başlangıcı:
-    # try:
-    #     df = context.dataframe
-    #     
-    #     if df is None:
-    #         return {"success": False, "error": "DataFrame bulunamadı"}
-    #     
-    #     # Sayısal istatistikler
-    #     numeric_df = df.select_dtypes(include=[np.number])
-    #     numeric_stats = {}
-    #     if not numeric_df.empty:
-    #         desc = numeric_df.describe()
-    #         for col in numeric_df.columns:
-    #             numeric_stats[col] = desc[col].to_dict()
-    #     
-    #     # Kategorik istatistikler
-    #     categorical_df = df.select_dtypes(include=['object', 'category'])
-    #     categorical_stats = {}
-    #     if not categorical_df.empty:
-    #         for col in categorical_df.columns:
-    #             categorical_stats[col] = {
-    #                 "count": df[col].count(),
-    #                 "unique": df[col].nunique(),
-    #                 "top": df[col].mode().iloc[0] if not df[col].mode().empty else None,
-    #                 "freq": df[col].value_counts().iloc[0] if not df[col].value_counts().empty else 0
-    #             }
-    #     
-    #     return {
-    #         "success": True,
-    #         "numeric_stats": numeric_stats,
-    #         "categorical_stats": categorical_stats,
-    #         "overall": {
-    #             "total_rows": len(df),
-    #             "total_columns": len(df.columns),
-    #             "numeric_columns": len(numeric_df.columns),
-    #             "categorical_columns": len(categorical_df.columns)
-    #         }
-    #     }
-    # except Exception as e:
-    #     return {"success": False, "error": str(e)}
-    
-    pass
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Veri inceleme sirasinda hata olustu: {str(e)}",
+            "numeric_stats": {},
+            "categorical_stats": {},
+            "overall": {}
+        }
 
 
 def get_value_counts(context: Any, column: str, top_n: int = 10) -> Dict[str, Any]:
