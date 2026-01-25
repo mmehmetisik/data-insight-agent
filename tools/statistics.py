@@ -201,7 +201,7 @@ def get_value_counts(context: Any, column: str, top_n: int = 10) -> Dict[str, An
         }
         
 def get_percentiles(context: Any, column: str, 
-                    percentiles: List[float] = [0.1, 0.25, 0.5, 0.75, 0.9, 0.99]) -> Dict[str, Any]:
+                    percentiles: List[float] = [0.1, 0.25, 0.5, 0.75, 0.9, 0.99], cat_th: int = 10, car_th: int = 20) -> Dict[str, Any]:
     """
     Bir sütun için yüzdelik dilimleri hesapla.
     
@@ -218,8 +218,52 @@ def get_percentiles(context: Any, column: str,
     2. quantile() ile yüzdelikleri hesapla
     3. Sonucu döndür
     """
-    # TODO: Implement this function
-    pass
+    try:
+        df = context.dataframe
+        if df is None or not isinstance(df, pd.DataFrame):
+            return {"success": False, "error": "Geçerli bir DataFrame yapisi bulunamadi"}
+        if column not in df.columns:
+            return {"success": False, "error": f"'{column}' sütunu bulunamadi"}
+        # kategorik sütunların ayrımı (object + category)
+        categorical_cols = df.select_dtypes(include=["object", "category"]).columns.tolist()
+        # nümerik ama kategorik sütunların ayrımı
+        num_but_cat = [col for col in df.columns if df[col].nunique() < cat_th and
+                   is_numeric_dtype(df[col])]
+        # kategorik ama kardinal sütunlarına ayrımı
+        cat_but_car = [col for col in df.columns if df[col].nunique() > car_th and
+                   not is_numeric_dtype(df[col])]
+        # kategorik sütunların birleşimi ve temizliği
+        categorical_cols = categorical_cols + num_but_cat
+        categorical_cols = [col for col in categorical_cols if col not in cat_but_car]
+
+        # nümerik sütunların ayrımı
+        numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
+        numeric_cols = [col for col in numeric_cols if col not in num_but_cat]
+
+        if column not in numeric_cols:
+            return {
+                "success": False, 
+                "error": f"'{column}' nümerik bir sütun olarak tespit edilmedi, yüzdelik hesaplanamaz",
+                "column": column
+            }
+        
+        quantiles = df[column].dropna().quantile(percentiles)
+        percentile_dict = {f"{int(p*100)}%": round(float(val), 2) for p, val in quantiles.items()}
+
+        return {
+            "success": True,
+            "column": column,
+            "percentiles": percentile_dict
+        }
+    
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "column": column,
+            "percentiles": {}
+        }
+
 
 
 # =============================================================================
@@ -301,3 +345,10 @@ if __name__ == "__main__":
     error_test = get_value_counts(context, "olmayan_sutun")
     print(f"   Beklenen Hata Mesajı: {error_test.get('error')}")
     print(f"   Success Durumu (Beklenen: False): {error_test.get('success')}")
+
+    # Test: get_percentiles
+    print("\n--- get_percentiles() testi ---")
+    p_result = get_percentiles(context, 'salary')
+    print(f" Success: {p_result.get('success')}")
+    if p_result.get("success"):
+        print(f" Percentiles: {p_result['percentiles']}")
