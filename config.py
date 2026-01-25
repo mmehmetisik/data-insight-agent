@@ -24,10 +24,10 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 # =============================================================================
 
 # Planlama için model (daha akıllı olmalı)
-PLANNER_MODEL = "llama-3.1-70b-versatile"
+PLANNER_MODEL = "llama-3.3-70b-versatile"
 
 # Yürütme için model (daha hızlı olabilir)
-EXECUTOR_MODEL = "llama-3.1-70b-versatile"
+EXECUTOR_MODEL = "llama-3.3-70b-versatile"
 
 # Model parametreleri
 MODEL_TEMPERATURE = 0.3  # Düşük = daha tutarlı
