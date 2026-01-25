@@ -16,6 +16,7 @@ Kullanım:
 import pandas as pd
 from pandas.api.types import is_object_dtype, is_numeric_dtype
 from typing import Dict, Any, Optional
+import os
 
 # config'den ayarları import et
 from config import MAX_ROWS_FOR_ANALYSIS, PREVIEW_ROWS
@@ -135,9 +136,39 @@ def load_csv(file_path: str) -> Optional[pd.DataFrame]:
     2. Hata varsa None döndür
     3. Başarılıysa DataFrame döndür
     """
-    # TODO: Implement this function
-    pass
+    try:
+        df = pd.read_csv(file_path)
+        
+        # csv boş mu
+        if df.empty: 
+            print(f"Uyari: {file_path} dosyasi boş!")
+            return None
+        
+        # sütun sayısı kontrolleri
+        num_of_cols = len(df.columns)
+        if num_of_cols == 0:
+            print(f"Uyari: {file_path} dosyasinda hiç sütun yok!")
+            return None
+        
+        if num_of_cols == 1:
+            print(f"Dikkat: {file_path} dosyasinda tek bir sütun var.")
+        
+        if num_of_cols > 50:
+            print(f"Dikkat: {file_path} dosyasi {num_of_cols} adet sütun içeriyor. İşlem uzun sürebilir.")
 
+        # sütun isimleri düzenleme
+        df.columns = [str(col).strip().lower().replace(" ", "_") for col in df.columns]
+
+        print(f"İşlem Tamam: {file_path} yüklendi. ({len(df)} satir bulundu)")
+
+        return df
+    
+    except FileNotFoundError:
+        print(f" Hata: '{file_path}' yolunda bir dosya bulunamadi!")
+        return None
+    except Exception as e:
+        print(f"Beklenmedik hata: {e}")
+        return None
 
 def get_column_info(df: pd.DataFrame) -> Dict[str, Dict]:
     """
@@ -210,3 +241,19 @@ if __name__ == "__main__":
         print("Sonuç:")
         for key, value in result.items():
             print(f"  {key}: {value}")
+
+    # Test: load_csv
+    print("\n--- load_csv() testi ---")
+    test_file_name = "test_deneme.csv"
+    pd.DataFrame({"Ad Soyad": ["Test"], "Yas": [20]}).to_csv(test_file_name, index=False)
+    csv_result = load_csv(test_file_name)
+
+    if csv_result is not None:
+        print(f"Başarılı! Sütunlar temizlendi: {csv_result.columns.tolist()}")
+        # Sütun isimleri 'ad_soyad' ve 'yas' olmuş mu bakıyoruz
+    else:
+        print("Hata: load_csv fonksiyonu None döndürdü!")
+
+    # test dosyasını sil
+    if os.path.exists(test_file_name):
+       os.remove(test_file_name)
