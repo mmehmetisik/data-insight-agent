@@ -54,6 +54,14 @@ Kurallar:
 
 TODO: Bu prompt'u geliştirin ve zenginleştirin.
 Örnek veri tipleri için farklı stratejiler ekleyin.
+Örnek stratejiler:
+- Eğer veri seti küçükse (1000 satırdan az), tüm analiz adımlarını kullanmak
+  yerine en anlamlı 3-4 adımı seç.
+- Eğer veri setinde ağırlıklı olarak kategorik sütunlar varsa, korelasyon
+  analizini atla ve veri kalitesi (eksik değerler, dağılım) üzerine odaklan.
+- Eğer veri seti sadece sayısal sütunlardan oluşuyorsa, korelasyon ve
+  aykırı değer analizine öncelik ver.
+- Eğer daha önce bazı adımlar tamamlandıysa, bu adımları tekrar etme.
 """
 
 
@@ -62,24 +70,55 @@ TODO: Bu prompt'u geliştirin ve zenginleştirin.
 # =============================================================================
 
 EXECUTOR_SYSTEM_PROMPT = """
-TODO: Bu prompt'u tamamlayın.
 
-Sen bir veri analiz yorumlayıcısısın. Sana bir analiz adımının sonucu
-verilecek ve sen bu sonucu Türkçe olarak yorumlayacaksın.
 
-Kurallar:
-1. Yorumlar kısa ve öz olsun (2-3 cümle)
-2. Önemli bulguları vurgula
-3. Varsa uyarıları belirt (eksik veri, outlier vb.)
-4. Teknik terimleri açıkla
+Sen bir veri analiz yorumlayıcısı (executor) olarak görev yapan bir LLM'sin.
 
-Örnek yorum:
-"Veri setinde 891 satır ve 12 sütun bulunmaktadır. Age sütununda %20 oranında
-eksik veri tespit edilmiştir. Bu durum yaş bazlı analizlerde dikkatli
-olunması gerektiğini göstermektedir."
+Sana bir analiz adımının adı ve bu adıma ait sonuçlar verilecektir.
+Görevin, bu sonuçları Türkçe, açık ve anlaşılır bir şekilde yorumlamaktır.
 
-TODO: Bu prompt'u geliştirin.
-Farklı adım türleri için örnek yorumlar ekleyin.
+Amacın:
+- Analiz sonuçlarını teknik bilgisi sınırlı bir kullanıcıya açıklamak
+- Önemli bulguları öne çıkarmak
+- Olası veri problemlerine dikkat çekmek
+
+Genel kurallar:
+1. Yorumlar kısa ve öz olmalıdır (2–3 cümle).
+2. Sayısal sonuçları mümkünse yorumla, sadece tekrar etme.
+3. Önemli bulguları özellikle vurgula.
+4. Varsa uyarıları belirt (eksik veri, aykırı değer, dengesizlik vb.).
+5. Teknik terimleri basit bir dille açıkla.
+
+Adım bazlı yorumlama rehberi:
+
+- load_and_inspect:
+  Veri setinin genel yapısını açıkla (satır, sütun sayısı, veri türleri).
+  Veri setinin analiz için uygun olup olmadığını belirt.
+
+- compute_statistics:
+  Ortalama, minimum, maksimum gibi değerlerin ne anlama geldiğini açıkla.
+  Değerlerin beklenen aralıkta olup olmadığına değin.
+
+- check_missing:
+  Eksik veri oranlarını belirt.
+  Yüksek eksik oranlarının analiz sonuçlarını etkileyebileceğini vurgula.
+
+- find_correlations:
+  Güçlü pozitif veya negatif ilişkileri açıkla.
+  Korelasyonun nedensellik anlamına gelmediğini belirt.
+
+- detect_outliers:
+  Aykırı değerlerin varlığını belirt.
+  Bu değerlerin analiz sonuçlarını bozabileceğini açıkla.
+
+- generate_summary:
+  Tüm analiz sürecini özetle.
+  En önemli bulguları ve dikkat edilmesi gereken noktaları bir araya getir.
+
+Yanıt formatı:
+- Düz metin kullan.
+- Madde işareti veya JSON kullanma.
+- Sadece yorum üret, ek soru sorma.
 """
 
 
@@ -88,11 +127,34 @@ Farklı adım türleri için örnek yorumlar ekleyin.
 # =============================================================================
 
 PLAN_REVISION_PROMPT = """
-TODO (Opsiyonel): Plan revizyon prompt'u
 
-Mevcut plan yürütülürken beklenmedik bir bulgu ortaya çıktı.
-Bu bulguya göre planı revize etmen gerekiyor.
+Sen bir veri analiz planlayıcısısın ve mevcut bir analiz planını
+yeni elde edilen bulgulara göre revize etmekle görevlisin.
 
+TÜM yanıtların ve açıklamaların TÜRKÇE olmalıdır.
+JSON alanlarının isimleri İngilizce kalabilir ancak açıklama metinleri
+(description) mutlaka Türkçe yazılmalıdır.
+
+Sana mevcut analiz planı, tamamlanan adımlar ve yeni bir bulgu
+(insight) verilecektir. Görevin, bu yeni bilgi ışığında planı
+gerekiyorsa revize etmektir.
+
+Kurallar:
+1. Daha önce tamamlanan adımları tekrar etme.
+2. Mevcut planın genel mantığını bozma, sadece gerekli değişiklikleri yap.
+3. Yeni bulgu ek analiz gerektiriyorsa uygun adımı plana ekle.
+4. Gereksiz adımlar ekleme veya mevcut anlamlı adımları silme.
+5. Plan her zaman generate_summary adımı ile bitmelidir.
+6. Toplam adım sayısı 6’yı geçmemelidir.
+
+Revizyon stratejisi:
+- Yeni bulgu veri kalitesi ile ilgiliyse (eksik veri, aykırı değer),
+  veri kalitesi analizine yönelik adımları plana ekle veya öne al.
+- Yeni bulgu güçlü bir ilişkiyi işaret ediyorsa, bu ilişkiyi
+  destekleyecek ek analiz adımlarını ekle.
+- Yeni bulgu mevcut planı etkilemiyorsa, planı değiştirme.
+
+Girdi bilgileri:
 Mevcut Plan:
 {current_plan}
 
@@ -102,8 +164,28 @@ Tamamlanan Adımlar:
 Yeni Bulgu:
 {insight}
 
-Revize edilmiş planı JSON formatında döndür.
+Örnek:
+Eğer yeni bulgu:
+"Income sütununda ciddi aykırı değerler tespit edildi"
+
+ve mevcut planda detect_outliers adımı yoksa,
+revize edilmiş plan bu adımı uygun bir sırada eklemelidir.
+
+Çıktı formatı:
+Yanıtını SADECE aşağıdaki JSON formatında ver. JSON dışında açıklama yazma.
+
+{
+    "plan": [
+        {
+            "step_number": 1,
+            "action": "load_and_inspect",
+            "description": "Veriyi yükle ve yapısını incele",
+            "tool": "data_loader"
+        }
+    ]
+}
 """
+
 
 
 # =============================================================================
@@ -133,6 +215,7 @@ Sonuç:
 {result}
 
 Bu sonucu Türkçe olarak yorumla.
+
 """
 
 SUMMARY_REQUEST_TEMPLATE = """
@@ -175,25 +258,46 @@ def format_data_info(shape: tuple, columns_info: str,
     TODO: Implement this function
     """
     # TODO: DATA_INFO_TEMPLATE'i doldur ve döndür
-    pass
 
+    rows, cols = shape
+
+    return DATA_INFO_TEMPLATE.format(
+        rows=rows,
+        cols=cols,
+        columns_info=columns_info,
+        missing_info=missing_info,
+        sample_data=sample_data
+    )
+    
 
 def format_step_result(step_name: str, action: str, result: dict) -> str:
+    
     """
     Adım sonucunu şablona göre formatla.
-    
-    TODO: Implement this function
     """
-    pass
+    return STEP_RESULT_TEMPLATE.format(
+      step_name=step_name,
+      action=action,
+      result=result
+    )
 
 
 def format_summary_request(all_results: list, insights: list) -> str:
     """
     Özet rapor isteğini şablona göre formatla.
-    
-    TODO: Implement this function
     """
-    pass
+    return f"""
+      Aşağıda bir veri analizi sürecinde elde edilen tüm adım sonuçları ve önemli
+     bulgular yer almaktadır.
+
+     Adım Sonuçları:
+     {all_results}
+
+    Önemli Bulgular:
+     {insights}
+
+    Bu bilgiler ışığında Türkçe, kısa ve anlaşılır bir özet rapor oluştur.
+    """
 
 
 # =============================================================================
@@ -210,13 +314,15 @@ if __name__ == "__main__":
     print(PLANNER_SYSTEM_PROMPT[:500] + "...")
     
     print("\n--- Şablon Testi ---")
-    # TODO: Şablon fonksiyonlarını test et
-    # test_info = format_data_info(
-    #     shape=(891, 12),
-    #     columns_info="PassengerId: int64, Survived: int64, ...",
-    #     missing_info="Age: 177 eksik, Cabin: 687 eksik",
-    #     sample_data="1, 0, 3, Braund..."
-    # )
-    # print(test_info)
     
-    print("Prompts TODO - Henüz tam implement edilmedi")
+    test_info = format_data_info(
+         shape=(891, 12),
+         columns_info="PassengerId: int64, Survived: int64, ...",
+         missing_info="Age: 177 eksik, Cabin: 687 eksik",
+         sample_data="1, 0, 3, Braund..."
+        )
+    print(test_info)
+
+    print("Prompts başarıyla test edildi")
+    # print("Prompts TODO - Henüz tam implement edilmedi")
+    
