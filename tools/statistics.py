@@ -17,6 +17,9 @@ import pandas as pd
 import numpy as np
 from typing import Dict, Any, List
 from pandas.api.types import is_numeric_dtype
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 # config'den ayarları import et
 from config import MAX_ROWS_FOR_ANALYSIS
