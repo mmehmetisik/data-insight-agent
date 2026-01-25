@@ -1,25 +1,3 @@
-"""
-context.py - Execution Context Yönetimi
-========================================
-Görev: Kişi 3
-Branch: feature/memory-prompts
-Zorluk: ⭐⭐⭐ Orta
-
-Bu modül agent'ın hafızasını (state) yönetir.
-Her analiz adımının sonucu burada saklanır ve
-sonraki adımlara aktarılır.
-
-Bu Proje 1'den farklı çünkü:
-- Proje 1'de her araç bağımsızdı (stateless)
-- Proje 2'de araçlar birbirinin sonucunu kullanıyor (stateful)
-
-Kullanım:
-    from memory.context import ExecutionContext
-    
-    context = ExecutionContext()
-    context.dataframe = df
-    context.add_step_result("load_data", {"shape": (100, 5)})
-"""
 
 import pandas as pd
 from datetime import datetime
@@ -49,8 +27,6 @@ class ExecutionContext:
     def __init__(self):
         """
         ExecutionContext'i başlat.
-        
-        TODO:
         1. dataframe = None
         2. metadata = boş dict
         3. step_results = boş liste
@@ -58,16 +34,21 @@ class ExecutionContext:
         5. insights = boş liste
         6. created_at = şimdiki zaman
         """
-        # TODO: Implement this method
-        
+       
         # self.dataframe: Optional[pd.DataFrame] = None
         # self.metadata: Dict[str, Any] = {}
         # self.step_results: List[Dict[str, Any]] = []
         # self.current_plan: List[Dict[str, Any]] = []
         # self.insights: List[Dict[str, Any]] = []
         # self.created_at: datetime = datetime.now()
+
+        self.dataframe: Optional[pd.DataFrame] = None
+        self.metadata: Dict[str, Any] = {}
+        self.step_results: List[Dict[str, Any]] = []
+        self.current_plan: List[Dict[str, Any]] = []
+        self.insights: List[Dict[str, Any]] = []
+        self.created_at: datetime = datetime.now()
         
-        pass
     
     def set_dataframe(self, df: pd.DataFrame) -> None:
         """
@@ -76,15 +57,19 @@ class ExecutionContext:
         Args:
             df: pandas DataFrame
         
-        TODO:
         1. self.dataframe = df
         2. metadata'yı güncelle (shape, columns, dtypes)
         """
-        # TODO: Implement this method
-        pass
+        
+        self.dataframe = df
+        self.metadata["shape"] = df.shape
+        self.metadata["columns"] = list(df.columns)
+        self.metadata["dtypes"] = df.dtypes.astype(str).to_dict()
+        
     
     def add_step_result(self, step_name: str, result: Dict[str, Any]) -> None:
         """
+
         Bir adımın sonucunu kaydet.
         
         Args:
@@ -97,12 +82,12 @@ class ExecutionContext:
             - timestamp: kayıt zamanı
             - step_number: kaçıncı adım
         
-        TODO:
+        
         1. Yeni sonuç dict'i oluştur
         2. step_results listesine ekle
         """
-        # TODO: Implement this method
         
+
         # step_record = {
         #     "step_name": step_name,
         #     "result": result,
@@ -110,8 +95,15 @@ class ExecutionContext:
         #     "step_number": len(self.step_results) + 1
         # }
         # self.step_results.append(step_record)
-        
-        pass
+        step_record = {
+        "step_name": step_name,
+        "result": result,
+        "timestamp": datetime.now(),
+        "step_number": len(self.step_results) + 1
+         }
+
+        self.step_results.append(step_record)
+    
     
     def add_insight(self, text: str, severity: str = "info") -> None:
         """
@@ -124,12 +116,19 @@ class ExecutionContext:
         Örnek:
             context.add_insight("Age sütununda %20 eksik veri", "warning")
         
-        TODO:
+
         1. Insight dict'i oluştur
         2. insights listesine ekle
         """
         # TODO: Implement this method
-        pass
+        insight = {
+        "text": text,
+        "severity": severity,
+        "timestamp": datetime.now()
+         }
+
+        self.insights.append(insight)
+
     
     def set_plan(self, plan: List[Dict[str, Any]]) -> None:
         """
@@ -138,11 +137,12 @@ class ExecutionContext:
         Args:
             plan: Plan adımları listesi
         
-        TODO:
+        
         1. self.current_plan = plan
         """
-        # TODO: Implement this method
-        pass
+        
+        self.current_plan = plan
+
     
     def get_step_result(self, step_name: str) -> Optional[Dict[str, Any]]:
         """
@@ -154,12 +154,17 @@ class ExecutionContext:
         Returns:
             Adım sonucu veya None
         
-        TODO:
+    
         1. step_results içinde ara
         2. Bulursan döndür, bulamazsan None
         """
-        # TODO: Implement this method
-        pass
+        
+        for step in self.step_results:
+         if step.get("step_name") == step_name:
+            return step
+
+        return None
+        
     
     def get_context_for_llm(self) -> str:
         """
@@ -186,14 +191,44 @@ class ExecutionContext:
         - [INFO] Fare ve Pclass arasında güçlü korelasyon
         '''
         
-        TODO:
+        
         1. Metadata'yı formatla
         2. Tamamlanan adımları listele
         3. Insights'ları ekle
         4. String olarak döndür
         """
-        # TODO: Implement this method
-        pass
+        
+        lines = []
+
+        # Başlık
+        lines.append("=== MEVCUT DURUM ===\n")
+
+        # Metadata (veri özeti)
+        if self.metadata:
+            shape = self.metadata.get("shape")
+            if shape:
+                lines.append(f"Veri: {shape[0]} satır, {shape[1]} sütun\n")
+
+        # Tamamlanan adımlar
+        if self.step_results:
+            lines.append("Tamamlanan Adımlar:")
+            for step in self.step_results:
+                step_name = step.get("step_name")
+                result = step.get("result", {})
+                summary = result.get("summary") or result.get("message") or ""
+                lines.append(f"- {step_name}: {summary}")
+            lines.append("")  # boş satır
+
+        # Önemli bulgular
+        if self.insights:
+            lines.append("Önemli Bulgular:")
+            for insight in self.insights:
+                severity = insight.get("severity", "info").upper()
+                text = insight.get("text", "")
+                lines.append(f"- [{severity}] {text}")
+
+        return "\n".join(lines)
+    
     
     def get_completed_steps(self) -> List[str]:
         """
@@ -204,7 +239,8 @@ class ExecutionContext:
         """
         # TODO: Implement this method
         # return [step["step_name"] for step in self.step_results]
-        pass
+        return [step["step_name"] for step in self.step_results]
+        
     
     def get_insights_by_severity(self, severity: str) -> List[Dict[str, Any]]:
         """
@@ -217,19 +253,30 @@ class ExecutionContext:
             List: Filtrelenmiş bulgular
         """
         # TODO: Implement this method
-        pass
+        return [
+        insight
+        for insight in self.insights
+        if insight.get("severity") == severity
+        ]
+        
     
     def clear(self) -> None:
         """
         Context'i sıfırla (yeni analiz için).
         
-        TODO:
+        
         1. Tüm listeleri temizle
         2. dataframe = None
         3. metadata = boş dict
         """
-        # TODO: Implement this method
-        pass
+        
+        self.dataframe = None
+        self.metadata = {}
+        self.step_results = []
+        self.current_plan = []
+        self.insights = []
+        self.created_at = datetime.now()
+       
     
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -238,8 +285,19 @@ class ExecutionContext:
         Returns:
             Dict: Tüm context bilgisi
         """
-        # TODO: Implement this method
-        pass
+        
+        return {
+        "dataframe": {
+            "shape": self.dataframe.shape,
+            "columns": list(self.dataframe.columns)
+        } if self.dataframe is not None else None,
+        "metadata": self.metadata,
+        "step_results": self.step_results,
+        "current_plan": self.current_plan,
+        "insights": self.insights,
+        "created_at": self.created_at.isoformat()
+        }
+        
     
     def __repr__(self) -> str:
         """String representation"""
