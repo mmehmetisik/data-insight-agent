@@ -185,24 +185,26 @@ def get_column_info(df: pd.DataFrame) -> Dict[str, Dict]:
             - unique_count: benzersiz değer sayısı
     
     TODO:
-    1. Her sütun için döngü kur
-    2. Bilgileri topla
-    3. Dict olarak döndür
+    1. Her sütun için döngü kur +
+    2. Bilgileri topla +
+    3. Dict olarak döndür +
     """
     result = {}
 
-    for col in df.columns:
-        col_info = {}
-        col_info["dtype"] = str(df[col].dtype)
-        col_info["non_null_count"] = int(df[col].count())
-        col_info["null_count"] = int(df[col].isna().sum())
-        col_info["unique_count"] = int(df[col].nunique())
+    try:
+        for col in df.columns:
+            col_info = {}
+            col_info["dtype"] = str(df[col].dtype)
+            col_info["non_null_count"] = int(df[col].count())
+            col_info["null_count"] = int(df[col].isna().sum())
+            col_info["unique_count"] = int(df[col].nunique())
 
-        result[col] = col_info
+            result[col] = col_info
+
+    except Exception as e:
+        print(f"Sütun bilgileri alınırken hata oluştu: {e}")
 
     return result
-
-
 
 
 # =============================================================================
