@@ -17,12 +17,16 @@ import json
 from groq import Groq
 from typing import List, Dict, Any, Optional
 
-# TODO: config.py'dan ayarları import et
-# from config import GROQ_API_KEY, PLANNER_MODEL, MODEL_TEMPERATURE, MAX_TOKENS
+# Path ayarı - config.py üst klasörde olduğu için sys.path'e ekliyoruz
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# TODO: prompts.py'dan sistem promptunu import et
-# from .prompts import PLANNER_SYSTEM_PROMPT
+# Config ayarları
+from config import GROQ_API_KEY, PLANNER_MODEL, MODEL_TEMPERATURE, MAX_TOKENS
 
+# Prompts
+from agent.prompts import PLANNER_SYSTEM_PROMPT
 
 class Planner:
     """
@@ -39,14 +43,19 @@ class Planner:
         """
         Planner'ı başlat.
         
-        TODO:
-        1. Groq client'ı oluştur
-        2. Model ayarlarını yükle
+        Groq client'ı oluşturur ve model ayarlarını yükler.
+        Client bir kere oluşturulur, her çağrıda tekrar bağlantı kurulmaz.
         """
-        # TODO: Groq client oluştur
-        # self.client = Groq(api_key=GROQ_API_KEY)
-        # self.model = PLANNER_MODEL
-        pass
+        # Groq client oluştur
+        self.client = Groq(api_key=GROQ_API_KEY)
+        
+        # Model ayarları
+        self.model = PLANNER_MODEL
+        self.temperature = MODEL_TEMPERATURE
+        self.max_tokens = MAX_TOKENS
+        
+        # Sistem promptu
+        self.system_prompt = PLANNER_SYSTEM_PROMPT
     
     def create_plan(self, data_info: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
@@ -57,40 +66,32 @@ class Planner:
                 - shape: (satır, sütun) tuple
                 - columns: sütun isimleri listesi
                 - dtypes: sütun tipleri dict
-                - sample: örnek veriler
+                - missing: eksik veri bilgisi dict
         
         Returns:
             Plan listesi, her adım için:
                 - step_number: Adım numarası
-                - action: Yapılacak işlem (load_data, compute_stats, vb.)
+                - action: Yapılacak işlem
                 - description: Türkçe açıklama
                 - tool: Kullanılacak araç
-        
-        Örnek çıktı:
-        [
-            {
-                "step_number": 1,
-                "action": "load_and_inspect",
-                "description": "Veriyi yükle ve yapısını incele",
-                "tool": "data_loader"
-            },
-            {
-                "step_number": 2,
-                "action": "compute_statistics",
-                "description": "Temel istatistikleri hesapla",
-                "tool": "statistics"
-            },
-            ...
-        ]
-        
-        TODO:
-        1. data_info'yu string formatına çevir
-        2. LLM'e sistem promptu ve data_info gönder
-        3. LLM'den gelen cevabı JSON olarak parse et
-        4. Plan listesi olarak döndür
         """
-        # TODO: Implement this method
-        pass
+        # Veri bilgisini LLM için formatla
+        formatted_data = self._format_data_info(data_info)
+        
+        # Kullanıcı promptu oluştur
+        user_prompt = f"""Aşağıdaki veri seti için analiz planı oluştur:
+
+{formatted_data}
+
+Planı JSON formatında döndür."""
+        
+        # LLM'e istek gönder ve cevap al
+        llm_response = self._call_llm(user_prompt)
+        
+        # LLM cevabını parse edip plan listesine çevir
+        plan = self._parse_plan(llm_response)
+        
+        return plan
     
     def _format_data_info(self, data_info: Dict[str, Any]) -> str:
         """
@@ -101,14 +102,36 @@ class Planner:
         
         Returns:
             Formatlanmış string
-        
-        TODO:
-        1. Shape bilgisini ekle
-        2. Sütun isimlerini ve tiplerini ekle
-        3. Örnek veriyi ekle (ilk birkaç satır)
         """
-        # TODO: Implement this method
-        pass
+        rows, cols = data_info.get('shape', (0, 0))
+        columns = data_info.get('columns', [])
+        dtypes = data_info.get('dtypes', {})
+        missing = data_info.get('missing', {})
+        
+        # Sütun bilgilerini formatla
+        columns_info = []
+        for col in columns:
+            dtype = dtypes.get(col, 'unknown')
+            missing_count = missing.get(col, 0)
+            
+            if missing_count > 0:
+                columns_info.append(f"- {col}: {dtype} ({missing_count} eksik)")
+            else:
+                columns_info.append(f"- {col}: {dtype}")
+        
+        # Formatlanmış string oluştur
+        formatted = f"""Veri Seti Bilgisi:
+-----------------
+Boyut: {rows} satır, {cols} sütun
+
+Sütunlar ve Tipleri:
+{chr(10).join(columns_info)}
+
+Eksik Veri Özeti:
+Toplam {sum(missing.values())} eksik değer, {len(missing)} sütunda dağılmış.
+"""
+        
+        return formatted
     
     def _call_llm(self, prompt: str) -> str:
         """
@@ -120,13 +143,26 @@ class Planner:
         Returns:
             LLM'in cevabı
         
-        TODO:
-        1. Groq API'yi çağır
-        2. Sistem promptu + kullanıcı promptu gönder
-        3. Cevabı döndür
+        Raises:
+            Exception: LLM çağrısı başarısız olursa
         """
-        # TODO: Implement this method
-        pass
+        try:
+            # Groq API'ye istek gönder
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": self.system_prompt},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=self.temperature,
+                max_tokens=self.max_tokens
+            )
+            
+            # Cevabı al ve döndür
+            return response.choices[0].message.content
+            
+        except Exception as e:
+            raise Exception(f"LLM çağrısı başarısız: {str(e)}")
     
     def _parse_plan(self, llm_response: str) -> List[Dict[str, Any]]:
         """
@@ -138,13 +174,49 @@ class Planner:
         Returns:
             Plan listesi
         
-        TODO:
-        1. JSON'ı parse et
-        2. Her adımı doğrula
-        3. Liste olarak döndür
+        Raises:
+            Exception: JSON parse edilemezse veya format geçersizse
         """
-        # TODO: Implement this method
-        pass
+        try:
+            # JSON parse et - LLM bazen öncesinde/sonrasında metin ekler
+            cleaned = llm_response.strip()
+
+            # ``json varsa, sadece o kısmı al
+            if "```json" in cleaned:
+                start = cleaned.find("```json") + 7
+                end = cleaned.find("```", start)
+                if end != -1:
+                    cleaned = cleaned[start:end].strip()
+            elif "```" in cleaned:
+                start = cleaned.find("```") + 3
+                end = cleaned.find("```", start)
+                if end != -1:
+                    cleaned = cleaned[start:end].strip()
+        
+            # JSON'dan dict'e çevir
+            parsed = json.loads(cleaned)
+            
+            # "plan" anahtarını al
+            if "plan" in parsed:
+                plan = parsed["plan"]
+            else:
+                # Eğer direkt liste dönmüşse
+                plan = parsed if isinstance(parsed, list) else []
+            
+            # Her adımı doğrula (gerekli anahtarlar var mı?)
+            validated_plan = []
+            for step in plan:
+                if all(key in step for key in ["step_number", "action", "description", "tool"]):
+                    validated_plan.append(step)
+                else:
+                    print(f"⚠️ Geçersiz adım atlandı: {step}")
+            
+            return validated_plan
+            
+        except json.JSONDecodeError as e:
+            raise Exception(f"Plan JSON parse edilemedi: {str(e)}\nLLM Cevabı: {llm_response[:200]}")
+        except Exception as e:
+            raise Exception(f"Plan işlenirken hata: {str(e)}")
     
     def revise_plan(self, current_plan: List[Dict], 
                     step_results: List[Dict], 
@@ -160,15 +232,10 @@ class Planner:
         Returns:
             Revize edilmiş plan
         
-        Bu metod opsiyoneldir. Temel implementasyon için
-        sadece create_plan yeterlidir.
-        
-        TODO (Opsiyonel - Bonus):
-        1. Mevcut durumu LLM'e anlat
-        2. Yeni bulguyu paylaş
-        3. Revize plan iste
+        Not: Bu metod opsiyoneldir (bonus). 
+        Temel implementasyon için sadece create_plan yeterlidir.
         """
-        # TODO: Implement this method (OPTIONAL)
+        # BONUS TODO: Opsiyonel - Plan revizyonu implementasyonu
         pass
 
 
@@ -179,7 +246,7 @@ class Planner:
 if __name__ == "__main__":
     print("=== Planner Test ===\n")
     
-    # Test için örnek veri bilgisi
+    # Test için örnek veri bilgisi (Titanic dataset)
     test_data_info = {
         "shape": (891, 12),
         "columns": ["PassengerId", "Survived", "Pclass", "Name", "Sex", "Age", 
@@ -205,19 +272,21 @@ if __name__ == "__main__":
         }
     }
     
-    # Planner oluştur ve test et
+    # Planner oluştur
     planner = Planner()
     
-    # TODO: Test çalıştırma
-    # plan = planner.create_plan(test_data_info)
-    # print("Oluşturulan Plan:")
-    # for step in plan:
-    #     print(f"  Adım {step['step_number']}: {step['description']}")
+    # Plan oluştur (LLM'e istek gönderilecek)
+    print("📋 Plan oluşturuluyor... (LLM'e istek gönderiliyor)\n")
     
-    print("Planner TODO - Henüz implement edilmedi")
-    print("\nBeklenen çıktı örneği:")
-    print("  Adım 1: Veriyi yükle ve yapısını incele")
-    print("  Adım 2: Temel istatistikleri hesapla")
-    print("  Adım 3: Eksik değerleri analiz et")
-    print("  Adım 4: Korelasyonları bul")
-    print("  Adım 5: Özet rapor oluştur")
+    try:
+        plan = planner.create_plan(test_data_info)
+        
+        # Planı ekrana yazdır
+        print("✅ Oluşturulan Plan:")
+        for step in plan:
+            print(f"  Adım {step['step_number']}: {step['description']}")
+        
+        print(f"\n📊 Toplam {len(plan)} adım planlandı.")
+        
+    except Exception as e:
+        print(f"❌ Hata: {e}")
