@@ -14,7 +14,7 @@ Kullanım:
 """
 
 import pandas as pd
-from pandas.api.types import is_object_dtype, is_numeric_dtype
+from pandas.api.types import is_numeric_dtype
 from typing import Dict, Any, Optional
 import os
 
@@ -132,9 +132,9 @@ def load_csv(file_path: str) -> Optional[pd.DataFrame]:
         pandas DataFrame veya None (hata durumunda)
     
     TODO:
-    1. pd.read_csv ile dosyayı oku
-    2. Hata varsa None döndür
-    3. Başarılıysa DataFrame döndür
+    1. pd.read_csv ile dosyayı oku +
+    2. Hata varsa None döndür +
+    3. Başarılıysa DataFrame döndür +
     """
     try:
         df = pd.read_csv(file_path)
@@ -189,8 +189,20 @@ def get_column_info(df: pd.DataFrame) -> Dict[str, Dict]:
     2. Bilgileri topla
     3. Dict olarak döndür
     """
-    # TODO: Implement this function
-    pass
+    result = {}
+
+    for col in df.columns:
+        col_info = {}
+        col_info["dtype"] = str(df[col].dtype)
+        col_info["non_null_count"] = int(df[col].count())
+        col_info["null_count"] = int(df[col].isna().sum())
+        col_info["unique_count"] = int(df[col].nunique())
+
+        result[col] = col_info
+
+    return result
+
+
 
 
 # =============================================================================
@@ -254,6 +266,14 @@ if __name__ == "__main__":
     else:
         print("Hata: load_csv fonksiyonu None döndürdü!")
 
-    # test dosyasını sil
+    # test_file_name test dosyasını sil
     if os.path.exists(test_file_name):
        os.remove(test_file_name)
+
+    # Test: get_column_info
+    print("\n--- get_column_info() testi ---")
+    col_info_result = get_column_info(test_df)
+    for col, info in col_info_result.items():
+        print(f"Sütun: {col}, Bilgiler: {info}")
+
+    
