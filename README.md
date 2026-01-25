@@ -88,7 +88,7 @@ pip install -r requirements.txt
 ### 4. API Anahtarını Ayarlayın
 
 ```bash
-cp .env.example .env
+cp .env .env
 ```
 
 `.env` dosyasını açın ve Groq API anahtarınızı girin:
