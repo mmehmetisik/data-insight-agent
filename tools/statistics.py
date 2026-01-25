@@ -172,10 +172,34 @@ def get_value_counts(context: Any, column: str, top_n: int = 10) -> Dict[str, An
     3. İlk top_n değeri al
     4. Sonucu döndür
     """
-    # TODO: Implement this function
-    pass
+    try:
+        df = context.dataframe
+        if df is None or not isinstance(df, pd.DataFrame):
+            return {"success": False, "error": "Geçerli bir DataFrame yapisi bulunamadi"}
+        if df.empty:
+            return {"success": False, "error": "DataFrame boş; analiz yapilamaz"}
+        if column not in df.columns:
+            return {"success": False, "error": f"'{column}' sütunu bulunamadi"}
+        
+        # frekanslar hesaplanıyor, top-n kadarı alınıyor
+        val_counts = df[column].value_counts().head(top_n)
 
-
+        return {
+            "success": True,
+            "column": column,
+            "value_counts": val_counts.to_dict(),
+            "total_unique": int(df[column].nunique())
+        }
+    
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "column": column,
+            "value_counts": {},
+            "total_unique": 0
+        }
+        
 def get_percentiles(context: Any, column: str, 
                     percentiles: List[float] = [0.1, 0.25, 0.5, 0.75, 0.9, 0.99]) -> Dict[str, Any]:
     """
@@ -256,3 +280,24 @@ if __name__ == "__main__":
         print(f"  Categorical columns: {list(result.get('categorical_stats', {}).keys())}")
         if 'overall' in result:
             print(f"  Overall: {result['overall']}")
+
+    # Test: get_value_counts
+    print("\n--- get_value_counts() testi ---")
+    # department sütunu test edilecek
+    target_col = 'department'
+    vc_result = get_value_counts(context, target_col, top_n=3)
+    
+    if vc_result.get("success"):
+        print(f" '{target_col}' için frekans analizi başarili!")
+        print(f"   Eşsiz Değer Sayisi: {vc_result['total_unique']}")
+        print(f"   En Sık Geçen {len(vc_result['value_counts'])} Değer:")
+        for val, count in vc_result['value_counts'].items():
+            print(f"     - {val}: {count}")
+    else:
+        print(f" Hata: {vc_result.get('error')}")
+
+    # Hata Durumu Testi: Olmayan bir sütun göndermek
+    print("\n--- get_value_counts() Hata Kontrol Testi ---")
+    error_test = get_value_counts(context, "olmayan_sutun")
+    print(f"   Beklenen Hata Mesajı: {error_test.get('error')}")
+    print(f"   Success Durumu (Beklenen: False): {error_test.get('success')}")
