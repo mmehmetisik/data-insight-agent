@@ -7,6 +7,23 @@ AI destekli otomatik veri analiz asistanı. CSV dosyalarınızı yükleyin, agen
 ![Groq](https://img.shields.io/badge/LLM-Groq%20Llama%203.1-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
+## 📸 Ekran Görüntüleri
+
+### Veri Önizleme ve Analiz Planı
+![Veri Önizleme](screenshots/01_veri_onizleme.png)
+
+### Adım Adım Yürütme (LLM Yorumları)
+![Yürütme](screenshots/02_yurutme.png)
+
+### Final Rapor
+![Final Rapor](screenshots/03_final_rapor.png)
+
+### Temel İstatistikler
+![İstatistikler](screenshots/04_istatistikler.png)
+
+### Sonuç ve Öneriler
+![Sonuç](screenshots/05_sonuc.png)
+
 ## 🎯 Özellikler
 
 - **Otomatik Planlama**: Agent veriye bakarak analiz planı oluşturur
